@@ -1,0 +1,65 @@
+# Deploy backend on the production EC2 instance via a self-hosted GitHub Actions runner.
+# No SSH from GitHub cloud runners — the job runs directly on the server.
+name: Deploy Production
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "prisma/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "ecosystem.config.js"
+      - "scripts/**"
+      - ".gitattributes"
+      - ".github/workflows/deploy-production.yml"
+
+concurrency:
+  group: dcb-backend-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, dcb-production]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Sync code to app directory
+        run: |
+          APP_DIR="/opt/dcb-backend"
+          mkdir -p "${APP_DIR}"
+          rsync -a --delete \
+            --exclude node_modules \
+            --exclude dist \
+            --exclude .env \
+            --exclude logs \
+            --exclude .git \
+            --exclude infra \
+            ./ "${APP_DIR}/"
+
+      - name: Deploy application
+        working-directory: /opt/dcb-backend
+        run: |
+          sed -i 's/\r$//' scripts/deploy-app.sh
+          chmod +x scripts/deploy-app.sh
+          bash scripts/deploy-app.sh
+
+      - name: Verify public health
+        env:
+          PROD_API_URL: ${{ secrets.PROD_API_URL }}
+        run: |
+          if [ -n "${PROD_API_URL}" ]; then
+            curl -sf "${PROD_API_URL}/health"
+            echo " — production health OK"
+          else
+            curl -sf "http://127.0.0.1:3000/health"
+            echo " — local health OK"
+          fi
