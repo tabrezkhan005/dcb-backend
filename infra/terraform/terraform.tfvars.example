@@ -1,0 +1,27 @@
+aws_region   = "ap-south-2"
+project_name = "dcb-ap"
+environment  = "production"
+
+# Create in EC2 → Key pairs (same region) before terraform apply
+ec2_key_name = "dcb-ap-key"
+
+# Your existing S3 buckets
+s3_exports_bucket  = "waqf-dcb-exports-ap-south-2"
+s3_receipts_bucket = "waqf-dcb-receipts-ap-south-2"
+
+# Min 32 characters each — use strong random strings
+jwt_secret         = "glY7eCTnRdjEf5mFkLwH2bX4GWVtchAqrz86SB9P3pyuKaMD"
+jwt_refresh_secret = "28zQNuxKvoGaVyUlqmhtFkYBTRWgfD6I1370MXLiScHEJnCj"
+
+# For multi-device testing before you have a domain; tighten later
+cors_origins = "*"
+
+# Optional: Git repo the EC2 instance clones on first boot (private repos need deploy keys)
+# app_repo_url = "https://github.com/your-org/dcb-backend.git"
+
+# Optional custom API domain (requires Route 53 hosted zone)
+# api_domain_name  = "api.yourdomain.gov.in"
+# route53_zone_id  = "Z0123456789ABCDEF"
+
+# Restrict SSH to your office/home IP
+ssh_cidr_blocks = ["103.42.248.18/32"]

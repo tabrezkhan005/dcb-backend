@@ -17,7 +17,7 @@ if [ -z "${RUNNER_TOKEN:-}" ]; then
   exit 1
 fi
 
-sudo yum install -y libicu 2>/dev/null || sudo dnf install -y libicu 2>/dev/null || true
+sudo yum install -y libicu rsync 2>/dev/null || sudo dnf install -y libicu rsync 2>/dev/null || true
 
 mkdir -p "${RUNNER_DIR}"
 cd "${RUNNER_DIR}"

@@ -1,0 +1,39 @@
+# Local dev stack for DCB backend.
+# Postgres uses host port 5433 so it does not clash with an existing PostgreSQL on 5432.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dcb-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: dcb_local_dev
+      POSTGRES_DB: dcb_ap
+    ports:
+      - "5433:5432"
+    volumes:
+      - dcb_pg_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d dcb_ap"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: dcb-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - dcb_redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  dcb_pg_data:
+  dcb_redis_data:

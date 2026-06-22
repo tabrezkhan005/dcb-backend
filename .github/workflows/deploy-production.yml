@@ -36,6 +36,9 @@ jobs:
         run: |
           APP_DIR="/opt/dcb-backend"
           mkdir -p "${APP_DIR}"
+          if ! command -v rsync >/dev/null 2>&1; then
+            sudo yum install -y rsync
+          fi
           rsync -a --delete \
             --exclude node_modules \
             --exclude dist \

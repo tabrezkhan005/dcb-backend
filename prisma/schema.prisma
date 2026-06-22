@@ -1,13 +1,184 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  INSPECTOR
+  ACCOUNTS
+  ADMIN
+  CHAIRMAN
+}
+
+enum DemandStatus {
+  PENDING
+  PARTIAL
+  COLLECTED
+  OVERDUE
+}
+
+enum CollectionStatus {
+  SUBMITTED
+  ACCEPTED
+  QUERIED
+}
+
+enum PaymentMode {
+  CASH
+  CHEQUE
+  UPI
+  DD
+}
+
+model District {
+  id        String   @id @default(uuid())
+  name      String
+  code      String   @unique
+  hqCity    String   @map("hq_city")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  users         User[]
+  institutions  Institution[]
+  demandNotices DemandNotice[]
+  transferFrom  TransferLog[] @relation("TransferFromDistrict")
+  transferTo    TransferLog[] @relation("TransferToDistrict")
+
+  @@map("districts")
+}
+
+model User {
+  id          String    @id @default(uuid())
+  districtId  String    @map("district_id")
+  name        String
+  phone       String    @unique
+  email       String?
+  password    String
+  role        Role
+  deviceId    String?   @map("device_id")
+  pushToken   String?   @map("push_token")
+  isActive    Boolean   @default(true) @map("is_active")
+  lastLoginAt DateTime? @map("last_login_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  district          District         @relation(fields: [districtId], references: [id])
+  assignedDemands   DemandNotice[]   @relation("DemandInspector")
+  createdDemands    DemandNotice[]   @relation("DemandCreatedBy")
+  collections       Collection[]     @relation("CollectionInspector")
+  accountsReviews   Collection[]     @relation("CollectionAccountsUser")
+  transferLogs      TransferLog[]    @relation("TransferUser")
+  transfersMade     TransferLog[]    @relation("TransferredByUser")
+  auditLogs         AuditLog[]
+
+  @@index([districtId])
+  @@index([role, districtId])
+  @@map("users")
+}
+
+model Institution {
+  id           String   @id @default(uuid())
+  districtId   String   @map("district_id")
+  name         String
+  category     String
+  address      String
+  contactName  String   @map("contact_name")
+  contactPhone String   @map("contact_phone")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  district      District       @relation(fields: [districtId], references: [id])
+  demandNotices DemandNotice[]
+
+  @@index([districtId])
+  @@map("institutions")
+}
+
+model DemandNotice {
+  id             String       @id @default(uuid())
+  institutionId  String       @map("institution_id")
+  inspectorId    String?      @map("inspector_id")
+  districtId     String       @map("district_id")
+  amountDue      Decimal      @map("amount_due") @db.Decimal(14, 2)
+  financialYear  String       @map("financial_year")
+  dueDate        DateTime     @map("due_date") @db.Date
+  status         DemandStatus @default(PENDING)
+  createdBy      String       @map("created_by")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  institution Institution @relation(fields: [institutionId], references: [id])
+  inspector   User?       @relation("DemandInspector", fields: [inspectorId], references: [id])
+  district    District    @relation(fields: [districtId], references: [id])
+  creator     User        @relation("DemandCreatedBy", fields: [createdBy], references: [id])
+  collections Collection[]
+
+  @@index([inspectorId, status])
+  @@index([districtId, financialYear])
+  @@map("demand_notices")
+}
+
+model Collection {
+  id               String           @id @default(uuid())
+  demandId         String           @map("demand_id")
+  inspectorId      String           @map("inspector_id")
+  amountCollected  Decimal          @map("amount_collected") @db.Decimal(14, 2)
+  paymentMode      PaymentMode      @map("payment_mode")
+  referenceNo      String?          @map("reference_no")
+  status           CollectionStatus @default(SUBMITTED)
+  accountsNote     String?          @map("accounts_note")
+  accountsUserId   String?          @map("accounts_user_id")
+  receiptNumber    String?          @unique @map("receipt_number")
+  receiptS3Key     String?          @map("receipt_s3_key")
+  idempotencyKey   String           @unique @map("idempotency_key")
+  submittedAt      DateTime         @default(now()) @map("submitted_at")
+  reviewedAt       DateTime?        @map("reviewed_at")
+
+  demand        DemandNotice @relation(fields: [demandId], references: [id])
+  inspector     User         @relation("CollectionInspector", fields: [inspectorId], references: [id])
+  accountsUser  User?        @relation("CollectionAccountsUser", fields: [accountsUserId], references: [id])
+
+  @@index([demandId])
+  @@index([inspectorId, status])
+  @@index([submittedAt])
+  @@map("collections")
+}
+
+model TransferLog {
+  id               String   @id @default(uuid())
+  userId           String   @map("user_id")
+  fromDistrictId   String   @map("from_district_id")
+  toDistrictId     String   @map("to_district_id")
+  transferredBy    String   @map("transferred_by")
+  notes            String?
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  user          User     @relation("TransferUser", fields: [userId], references: [id])
+  fromDistrict  District @relation("TransferFromDistrict", fields: [fromDistrictId], references: [id])
+  toDistrict    District @relation("TransferToDistrict", fields: [toDistrictId], references: [id])
+  transferredByUser User @relation("TransferredByUser", fields: [transferredBy], references: [id])
+
+  @@index([userId])
+  @@map("transfer_logs")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?  @map("user_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  beforeData Json?    @map("before_data")
+  afterData  Json?    @map("after_data")
+  ipAddress  String?  @map("ip_address")
+  deviceId   String?  @map("device_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@map("audit_logs")
 }
